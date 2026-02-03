@@ -5,61 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Décodeur Rouge (Corrigé)</title>
     <style>
-        body, html {
-            margin: 0; padding: 0;
-            width: 100%; height: 100%;
-            background-color: #000;
-            overflow: hidden;
-        }
+    /* ... garder body et html comme avant ... */
 
-        #container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            background: black;
-        }
+    #container {
+        position: relative;
+        width: 100vw; 
+        height: 100vh;
+    }
 
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            
-            /* VERSION CORRIGÉE : On force l'accélération matérielle */
-            transform: translateZ(0); 
-            
-            /* Le filtre avec préfixe pour Safari/iOS */
-            -webkit-filter: url(#redFilter) contrast(1.5) brightness(1.1);
-            filter: url(#redFilter) contrast(1.5) brightness(1.1);
-        }
+    video {
+        width: 100%; height: 100%;
+        object-fit: cover;
+        /* On retire le filtre SVG ici */
+        filter: grayscale(100%) contrast(1.5); 
+    }
 
-        /* L'SVG ne doit PAS être en display:none, sinon le filtre se désactive sur iOS */
-        #filter-source {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 0;
-            height: 0;
-            visibility: hidden; /* Caché mais calculé */
-        }
-
-        .ui {
-            position: absolute;
-            bottom: 30px;
-            width: 100%;
-            text-align: center;
-            z-index: 10;
-        }
-
-        button {
-            padding: 15px 30px;
-            font-size: 18px;
-            border-radius: 50px;
-            border: 2px solid white;
-            background: rgba(255, 0, 0, 0.5);
-            color: white;
-            font-weight: bold;
-        }
-    </style>
+    /* LE TRUC MAGIQUE : Un calque rouge par dessus la vidéo */
+    #container::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background-color: #FF0000; /* ROUGE PUR */
+        mix-blend-mode: multiply;  /* MODE PRODUIT */
+        pointer-events: none;      /* Laisse passer les clics */
+    }
+</style>
 </head>
 <body>
 
@@ -111,3 +82,4 @@
     </script>
 </body>
 </html>
+
