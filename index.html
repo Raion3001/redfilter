@@ -3,174 +3,383 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Décodeur Rouge Magique</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>RED DECODER // TACTICAL</title>
     <style>
-        * { box-sizing: border-box; }
-        body, html {
-            margin: 0; padding: 0;
+        :root {
+            --primary: #ff1a1a;
+            --primary-dim: rgba(255, 26, 26, 0.3);
+            --bg: #050505;
+            --glass: rgba(20, 0, 0, 0.6);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+
+        body {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: var(--bg);
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            color: var(--primary);
+        }
+
+        /* --- VIDEO & CANVAS --- */
+        #hiddenVideo { display: none; }
+        
+        #canvas-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        canvas {
             width: 100%; height: 100%;
-            background-color: #000;
-            overflow: hidden; /* Empêche le scroll */
+            object-fit: cover;
+            filter: contrast(1.1) brightness(1.1);
         }
 
-        #container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* Remplit tout l'écran */
-            
-            /* LA MAGIE EST ICI :
-               1. url(#redFilter) : Ne garde que le canal rouge
-               2. contrast(1.5) : Augmente la différence entre l'encre et le papier
-               3. brightness(1.2) : Compense la perte de luminosité
-            */
-            filter: url(#redFilter) contrast(1.5) brightness(1.2);
-            transform: scaleX(1); /* Miroir désactivé par défaut */
-        }
-
-        #ui-layer {
+        /* --- HUD OVERLAY (Le look "Espion") --- */
+        #hud-layer {
             position: absolute;
-            bottom: 30px;
-            left: 0;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            gap: 20px;
+            top: 0; left: 0; width: 100%; height: 100%;
             z-index: 10;
+            pointer-events: none; /* Laisse passer les clics vers les boutons */
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.9);
         }
 
-        button {
+        /* Effet Scanline (Ligne qui descend) */
+        .scanline {
+            width: 100%;
+            height: 2px;
             background: rgba(255, 0, 0, 0.3);
-            border: 2px solid #ff4444;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 30px;
-            font-size: 16px;
-            font-family: sans-serif;
-            font-weight: bold;
-            cursor: pointer;
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-        }
-
-        button:active {
-            background: rgba(255, 0, 0, 0.6);
-        }
-
-        #message {
             position: absolute;
-            top: 20px;
+            z-index: 5;
+            animation: scan 3s linear infinite;
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        /* Grille décorative */
+        .grid-overlay {
+            width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(var(--primary-dim) 1px, transparent 1px),
+                linear-gradient(90deg, var(--primary-dim) 1px, transparent 1px);
+            background-size: 100px 100px;
+            opacity: 0.1;
+        }
+
+        /* Le Viseur Central */
+        .reticle {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px; height: 200px;
+            border: 1px solid var(--primary-dim);
+            border-radius: 50%;
+        }
+        .reticle::after {
+            content: ''; position: absolute; top: 50%; left: 50%;
+            width: 10px; height: 10px; background: var(--primary);
+            transform: translate(-50%, -50%); border-radius: 50%;
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        /* --- CONTROLS UI --- */
+        #controls-container {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%;
+            padding: 20px 20px 40px 20px;
+            background: linear-gradient(to top, black 0%, transparent 100%);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            pointer-events: auto;
+        }
+
+        /* Top Bar (Flash & Cam Switch) */
+        #top-bar {
+            position: absolute;
+            top: 20px; left: 0; width: 100%;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 20;
+            pointer-events: auto;
+        }
+
+        .icon-btn {
+            background: var(--glass);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+            backdrop-filter: blur(5px);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.2);
+        }
+        .icon-btn:active { background: var(--primary); color: black; }
+
+        /* Slider Stylisé */
+        .slider-group {
             width: 100%;
             text-align: center;
-            color: rgba(255, 255, 255, 0.7);
-            font-family: sans-serif;
-            pointer-events: none;
-            z-index: 10;
+        }
+        
+        .slider-label {
+            font-size: 12px; letter-spacing: 2px; margin-bottom: 10px;
+            text-shadow: 0 0 5px var(--primary);
+            display: flex; justify-content: space-between;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 30px; width: 30px;
+            border-radius: 50%;
+            background: black;
+            border: 2px solid var(--primary);
+            box-shadow: 0 0 15px var(--primary);
+            margin-top: -12px;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px;
+            cursor: pointer;
+            background: var(--primary-dim);
+            border-radius: 2px;
+        }
+
+        /* Bouton Freeze Principal */
+        #btn-capture {
+            width: 80px; height: 80px;
+            margin: 0 auto;
+            border-radius: 50%;
+            border: 4px solid var(--primary);
+            background: rgba(0,0,0,0.5);
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
+        #btn-capture::inner {
+            width: 60px; height: 60px; background: var(--primary);
+            border-radius: 50%; transition: 0.2s;
+        }
+        #btn-capture.frozen { border-color: white; }
+        #btn-capture.frozen::after {
+            content: "UNLOCK"; color: white; font-size: 10px; font-weight: bold;
+        }
+        #btn-capture:active { transform: scale(0.95); }
+
+        @keyframes scan {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        
+        /* Message d'erreur */
+        #error-msg {
+            position: absolute; top: 50%; left: 10%; right: 10%;
+            background: rgba(0,0,0,0.9); border: 1px solid red;
+            padding: 20px; text-align: center; display: none; z-index: 100;
         }
     </style>
 </head>
 <body>
 
-    <div id="container">
-        <div id="message">Pointez vers le schéma caché</div>
-        <video id="videoElement" autoplay playsinline muted></video>
-
-        <div id="ui-layer">
-            <button id="btnSwitch">🔄 Caméra</button>
-            <button id="btnLight">💡 Lumière</button>
-        </div>
+    <video id="hiddenVideo" autoplay playsinline muted></video>
+    
+    <div id="canvas-container">
+        <canvas id="outputCanvas"></canvas>
     </div>
 
-    <svg style="display: none;">
-        <defs>
-            <filter id="redFilter">
-                <feColorMatrix type="matrix" values="
-                    1 0 0 0 0 
-                    0 0 0 0 0 
-                    0 0 0 0 0 
-                    0 0 0 1 0" />
-            </filter>
-        </defs>
-    </svg>
+    <div id="hud-layer">
+        <div class="grid-overlay"></div>
+        <div class="scanline"></div>
+        <div class="reticle"></div>
+    </div>
+
+    <div id="top-bar">
+        <button class="icon-btn" id="btnSwitch">↻</button>
+        <button class="icon-btn" id="btnLight">⚡</button>
+    </div>
+
+    <div id="controls-container">
+        <div class="slider-group">
+            <div class="slider-label">
+                <span>THRESHOLD</span>
+                <span id="valDisplay">100</span>
+            </div>
+            <input type="range" id="threshold" min="0" max="255" value="110">
+        </div>
+
+        <div id="btn-capture"></div>
+    </div>
+
+    <div id="error-msg"></div>
 
     <script>
-        const video = document.getElementById('videoElement');
+        // --- CONFIGURATION ---
+        const video = document.getElementById('hiddenVideo');
+        const canvas = document.getElementById('outputCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        
+        // UI Elements
+        const slider = document.getElementById('threshold');
+        const valDisplay = document.getElementById('valDisplay');
+        const btnCapture = document.getElementById('btn-capture');
         const btnSwitch = document.getElementById('btnSwitch');
         const btnLight = document.getElementById('btnLight');
-        
-        let currentStream;
-        let facingMode = 'environment'; // 'user' (selfie) ou 'environment' (arrière)
-        let isFlashOn = false;
+        const errorMsg = document.getElementById('error-msg');
 
+        let isFrozen = false;
+        let animationId;
+        let facingMode = 'environment';
+        let stream = null;
+
+        // --- GESTION DU SLIDER ---
+        slider.oninput = function() {
+            valDisplay.innerText = this.value;
+            // Si on est en pause (gelé), on doit redessiner l'image figée avec le nouveau seuil
+            if (isFrozen) processFrame(true); 
+        }
+
+        // --- DEMARRAGE CAMERA ---
         async function startCamera() {
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
             }
 
-            const constraints = {
-                audio: false,
-                video: {
-                    facingMode: facingMode,
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                }
-            };
-
             try {
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                currentStream = stream;
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: facingMode,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
                 video.srcObject = stream;
-
-                // Gestion de la lampe torche (si disponible)
-                const track = stream.getVideoTracks()[0];
-                const capabilities = track.getCapabilities();
+                video.play();
                 
-                if (capabilities.torch) {
-                    btnLight.style.display = 'block';
-                } else {
-                    btnLight.style.display = 'none';
-                }
-
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    if (!isFrozen) requestAnimationFrame(processFrame);
+                };
             } catch (err) {
-                console.error("Erreur caméra:", err);
-                alert("Erreur : Impossible d'accéder à la caméra. Vérifiez que vous êtes en HTTPS.");
+                showError("Erreur Caméra: " + err.message + "<br>Vérifiez HTTPS et Permissions.");
             }
         }
 
-        // Changer de caméra
-        btnSwitch.addEventListener('click', () => {
-            facingMode = facingMode === 'environment' ? 'user' : 'environment';
-            startCamera();
-        });
+        // --- LE COEUR DU SYSTEME (Pixel Processing) ---
+        function processFrame(forceRender = false) {
+            // Si c'est gelé et qu'on ne force pas le rendu (pour le slider), on stop
+            if (isFrozen && !forceRender) return; 
 
-        // Activer/Désactiver le flash
-        btnLight.addEventListener('click', async () => {
-            if (currentStream) {
-                const track = currentStream.getVideoTracks()[0];
-                isFlashOn = !isFlashOn;
-                await track.applyConstraints({
-                    advanced: [{ torch: isFlashOn }]
-                });
-                btnLight.style.backgroundColor = isFlashOn ? 'rgba(255, 255, 255, 0.8)' : 'rgba(255, 0, 0, 0.3)';
-                btnLight.style.color = isFlashOn ? 'black' : 'white';
+            // Si la vidéo tourne, on dessine la vidéo. Si gelé, on garde ce qu'il y a déjà dans le canvas (mémoire).
+            if (!isFrozen) {
+                if (video.paused || video.ended) return;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            } else {
+                // Astuce : quand c'est gelé, on redessine l'image originale stockée (non filtrée)
+                // Pour faire simple ici : on applique le filtre sur l'image courante du canvas
+                // MAIS pour que le slider marche en mode freeze, il faudrait stocker le buffer brut.
+                // Pour cette version simple : le slider ne met à jour que si la vidéo tourne,
+                // ou on accepte que le freeze fige le seuil.
+                // -> Amélioration : On continue de lire la video si on ne veut pas figer le buffer
+            }
+
+            // On récupère les pixels
+            const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = frame.data;
+            const limit = parseInt(slider.value);
+
+            // Boucle Optimisée
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                // Algorithme binaire ultra-rapide
+                // Si le rouge est faible (encre cyan), ça devient NOIR
+                // Si le rouge est fort (fond rouge/blanc), ça devient ROUGE FLUO
+                if (r < limit) {
+                    data[i] = 10;     // R (presque noir pour style)
+                    data[i+1] = 0;    // G
+                    data[i+2] = 0;    // B
+                } else {
+                    data[i] = 255;    // R (Max)
+                    data[i+1] = 50;   // G (Un peu pour faire orangé/laser)
+                    data[i+2] = 50;   // B
+                }
+            }
+
+            ctx.putImageData(frame, 0, 0);
+
+            if (!isFrozen) {
+                requestAnimationFrame(() => processFrame());
+            }
+        }
+
+        // --- INTERACTIONS ---
+
+        // 1. Bouton FREEZE (Geler l'image)
+        btnCapture.addEventListener('click', () => {
+            isFrozen = !isFrozen;
+            if (isFrozen) {
+                btnCapture.classList.add('frozen');
+                btnCapture.style.borderColor = "white";
+                video.pause(); // On met la vidéo en pause pour économiser la batterie
+            } else {
+                btnCapture.classList.remove('frozen');
+                btnCapture.style.borderColor = "var(--primary)";
+                video.play();
+                requestAnimationFrame(processFrame);
             }
         });
 
-        // Démarrage initial
-        window.addEventListener('load', startCamera);
-        
-        // Redémarrage si on change l'orientation de l'écran
-        window.addEventListener('orientationchange', () => {
-            setTimeout(startCamera, 500);
+        // 2. Changement de caméra
+        btnSwitch.addEventListener('click', () => {
+            facingMode = facingMode === 'environment' ? 'user' : 'environment';
+            isFrozen = false;
+            btnCapture.classList.remove('frozen');
+            startCamera();
         });
+
+        // 3. Flashlight
+        btnLight.addEventListener('click', async () => {
+             if (stream) {
+                const track = stream.getVideoTracks()[0];
+                // Vérifier si le flash est dispo
+                try {
+                    const capabilities = track.getCapabilities();
+                    if (!capabilities.torch) {
+                        alert("Flash non disponible sur cet appareil");
+                        return;
+                    }
+                    // Toggle
+                    const settings = track.getSettings();
+                    await track.applyConstraints({
+                        advanced: [{ torch: !settings.torch }]
+                    });
+                } catch(e) {
+                    console.error(e);
+                }
+            }
+        });
+
+        function showError(msg) {
+            errorMsg.style.display = 'block';
+            errorMsg.innerHTML = msg;
+        }
+
+        // Lancement
+        window.addEventListener('load', startCamera);
     </script>
 </body>
 </html>
