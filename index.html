@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Décodeur Rouge Magique</title>
+    <style>
+        * { box-sizing: border-box; }
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background-color: #000;
+            overflow: hidden; /* Empêche le scroll */
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Remplit tout l'écran */
+            
+            /* LA MAGIE EST ICI :
+               1. url(#redFilter) : Ne garde que le canal rouge
+               2. contrast(1.5) : Augmente la différence entre l'encre et le papier
+               3. brightness(1.2) : Compense la perte de luminosité
+            */
+            filter: url(#redFilter) contrast(1.5) brightness(1.2);
+            transform: scaleX(1); /* Miroir désactivé par défaut */
+        }
+
+        #ui-layer {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        button {
+            background: rgba(255, 0, 0, 0.3);
+            border: 2px solid #ff4444;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-family: sans-serif;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        button:active {
+            background: rgba(255, 0, 0, 0.6);
+        }
+
+        #message {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: sans-serif;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="container">
+        <div id="message">Pointez vers le schéma caché</div>
+        <video id="videoElement" autoplay playsinline muted></video>
+
+        <div id="ui-layer">
+            <button id="btnSwitch">🔄 Caméra</button>
+            <button id="btnLight">💡 Lumière</button>
+        </div>
+    </div>
+
+    <svg style="display: none;">
+        <defs>
+            <filter id="redFilter">
+                <feColorMatrix type="matrix" values="
+                    1 0 0 0 0 
+                    0 0 0 0 0 
+                    0 0 0 0 0 
+                    0 0 0 1 0" />
+            </filter>
+        </defs>
+    </svg>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const btnSwitch = document.getElementById('btnSwitch');
+        const btnLight = document.getElementById('btnLight');
+        
+        let currentStream;
+        let facingMode = 'environment'; // 'user' (selfie) ou 'environment' (arrière)
+        let isFlashOn = false;
+
+        async function startCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                audio: false,
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                }
+            };
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                currentStream = stream;
+                video.srcObject = stream;
+
+                // Gestion de la lampe torche (si disponible)
+                const track = stream.getVideoTracks()[0];
+                const capabilities = track.getCapabilities();
+                
+                if (capabilities.torch) {
+                    btnLight.style.display = 'block';
+                } else {
+                    btnLight.style.display = 'none';
+                }
+
+            } catch (err) {
+                console.error("Erreur caméra:", err);
+                alert("Erreur : Impossible d'accéder à la caméra. Vérifiez que vous êtes en HTTPS.");
+            }
+        }
+
+        // Changer de caméra
+        btnSwitch.addEventListener('click', () => {
+            facingMode = facingMode === 'environment' ? 'user' : 'environment';
+            startCamera();
+        });
+
+        // Activer/Désactiver le flash
+        btnLight.addEventListener('click', async () => {
+            if (currentStream) {
+                const track = currentStream.getVideoTracks()[0];
+                isFlashOn = !isFlashOn;
+                await track.applyConstraints({
+                    advanced: [{ torch: isFlashOn }]
+                });
+                btnLight.style.backgroundColor = isFlashOn ? 'rgba(255, 255, 255, 0.8)' : 'rgba(255, 0, 0, 0.3)';
+                btnLight.style.color = isFlashOn ? 'black' : 'white';
+            }
+        });
+
+        // Démarrage initial
+        window.addEventListener('load', startCamera);
+        
+        // Redémarrage si on change l'orientation de l'écran
+        window.addEventListener('orientationchange', () => {
+            setTimeout(startCamera, 500);
+        });
+    </script>
+</body>
+</html>
